@@ -1,0 +1,22 @@
+# Secrets & personal data — NEVER commit (this repo is public)
+.env
+tokens/
+*_base64*
+*.fit
+
+# Scraped data — keep the dir, ignore contents
+data/*
+!data/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.python-version
+.pytest_cache/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
