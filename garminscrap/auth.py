@@ -6,11 +6,12 @@ Normal runs reuse a saved OAuth token (no password, no MFA). The one-time
 import base64
 import os
 import sys
+import time
 from pathlib import Path
 
 from garminconnect import Garmin
 
-from . import config
+from . import config, gmail_mfa
 
 
 def _mfa_prompt():
@@ -55,11 +56,18 @@ def interactive_login(skip_mobile=False):
     if not config.GARMIN_EMAIL or not config.GARMIN_PASSWORD:
         raise SystemExit("Set GARMIN_EMAIL and GARMIN_PASSWORD in your .env first.")
 
+    # If Gmail is configured, read the code automatically; else prompt for it.
+    if gmail_mfa.configured():
+        login_start = time.time()
+        prompt = lambda: gmail_mfa.get_code(login_start)
+    else:
+        prompt = _mfa_prompt
+
     garmin = Garmin(
         email=config.GARMIN_EMAIL,
         password=config.GARMIN_PASSWORD,
         is_cn=config.GARMIN_IS_CN,
-        prompt_mfa=_mfa_prompt,
+        prompt_mfa=prompt,
     )
     if skip_mobile:
         garmin.client.skip_strategies = {"mobile+cffi", "mobile+requests"}

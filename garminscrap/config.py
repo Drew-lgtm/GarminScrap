@@ -28,3 +28,10 @@ R2_PREFIX = os.getenv("R2_PREFIX", "garmin")
 # Optional AI report.
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5")
+
+# Gmail API (read-only) for automated MFA. If unset, login prompts for the code.
+GMAIL_CLIENT_ID = os.getenv("GMAIL_CLIENT_ID")
+GMAIL_CLIENT_SECRET = os.getenv("GMAIL_CLIENT_SECRET")
+GMAIL_REFRESH_TOKEN = os.getenv("GMAIL_REFRESH_TOKEN")
+GMAIL_OTP_QUERY = os.getenv("GMAIL_OTP_QUERY", "from:garmin newer_than:1d")
+GMAIL_OTP_TIMEOUT = int(os.getenv("GMAIL_OTP_TIMEOUT", "120"))

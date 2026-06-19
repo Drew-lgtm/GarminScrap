@@ -30,6 +30,24 @@ python -m garminscrap.cli login
 
 This also prints a `GARMIN_TOKEN_B64` blob — save it for GitHub Actions later.
 
+If Garmin asks for an emailed verification code, you can enter it by hand, or set
+up **automated MFA** (see below) so login is fully hands-off.
+
+### Automated MFA (Gmail API, read-only)
+
+If the Garmin code arrives in Gmail, the login can read it automatically:
+
+1. In [Google Cloud Console](https://console.cloud.google.com): create a project,
+   enable the **Gmail API**, configure the OAuth consent screen (External), and
+   **publish it to "Production"** — otherwise the refresh token expires after 7 days.
+2. Create an **OAuth client ID** of type *Desktop app*; download `client_secret.json`.
+3. Mint a refresh token (opens a browser once):
+   ```bash
+   python scripts/gmail_auth.py client_secret.json
+   ```
+4. Put the printed `GMAIL_CLIENT_ID` / `GMAIL_CLIENT_SECRET` / `GMAIL_REFRESH_TOKEN`
+   in `.env`. Now `login` reads the code itself — no typing.
+
 **2. Scrape:**
 
 ```bash

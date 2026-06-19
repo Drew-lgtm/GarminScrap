@@ -3,28 +3,17 @@
 Prioritized follow-ups. The core is done (login, scraper, R2, tests, full-year local
 pull). These make it fully autonomous and add the AI report.
 
-## 1. Autonomous email-based authentication  (do first)
+## 1. Autonomous email-based authentication  (DONE — local)
 
-Goal: re-login with no human in the loop, so the whole pipeline can run unattended —
-including the ~yearly token refresh in CI.
+Implemented via the **Gmail API (read-only)**: `garminscrap/gmail_mfa.py` polls Gmail
+for the Garmin code (newer than login start) and feeds it to `prompt_mfa`; `auth.py`
+uses it automatically when `GMAIL_*` env vars are set, else prompts. One-time setup is
+`scripts/gmail_auth.py` (see README "Automated MFA").
 
-Why: Garmin's mobile login path needs no code, but when it's rate-limited (429) the flow
-falls back to the web/widget path, which **emails a verification code**. Today that code
-is typed by hand (`login` prompts for it).
-
-Approach:
-- After triggering login, read the inbox over **IMAP**, find the most recent Garmin
-  verification email, extract the 6-digit code via regex, and feed it to the `prompt_mfa`
-  callback — or use the library's `return_on_mfa=True` + `resume_login()` two-step for a
-  clean non-interactive flow.
-- Poll IMAP with short retry/backoff (the email lands a few seconds after login starts).
-- Prefer the no-code mobile path first (retry/backoff); use email-code automation only as
-  the fallback when the widget path is forced.
-
-Open questions / inputs needed:
-- Which inbox receives the Garmin code (IMAP host)? A read-only mail credential
-  (e.g. a Gmail **app password**) stored as a secret — never in the repo.
-- Confirm sender + code format so the regex is reliable.
+Remaining: this makes the **local** `login` zero-touch. Fully autonomous **CI re-auth**
+is still open — GitHub's cloud IPs get 429'd/Cloudflare-walled by Garmin even with the
+code automated, so plan a self-hosted/fixed-IP runner or accept that the ~yearly re-auth
+runs locally (now hands-off).
 
 ## 2. GitHub Actions automation
 
