@@ -35,3 +35,11 @@ GMAIL_CLIENT_SECRET = os.getenv("GMAIL_CLIENT_SECRET")
 GMAIL_REFRESH_TOKEN = os.getenv("GMAIL_REFRESH_TOKEN")
 GMAIL_OTP_QUERY = os.getenv("GMAIL_OTP_QUERY", "from:garmin newer_than:1d")
 GMAIL_OTP_TIMEOUT = int(os.getenv("GMAIL_OTP_TIMEOUT", "120"))
+
+# Weekly AI health report: Gemini (free tier) + Gmail SMTP email.
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+GMAIL_ADDRESS = os.getenv("GMAIL_ADDRESS")            # SMTP sender
+GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")  # Gmail app password (not read-only OAuth)
+REPORT_TO = os.getenv("REPORT_TO")                    # recipient (default: GMAIL_ADDRESS)
+REPORT_SOURCE = os.getenv("REPORT_SOURCE", STORAGE_BACKEND)  # read data from local|r2

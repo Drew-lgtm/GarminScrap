@@ -97,6 +97,13 @@ def cmd_analyze(args):
     analyze.run(args.start, args.end)
 
 
+def cmd_report(args):
+    from . import report
+    start, end = _resolve_window(args)
+    report.run(start.isoformat(), end.isoformat(), source=args.source,
+               email=not args.no_email)
+
+
 def main():
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     p = argparse.ArgumentParser(prog="garminscrap")
@@ -124,6 +131,15 @@ def main():
     sp.add_argument("--start", required=True)
     sp.add_argument("--end", required=True)
     sp.set_defaults(func=cmd_analyze)
+
+    sp = sub.add_parser("report", help="MD-style health report, emailed (Gemini + Gmail)")
+    sp.add_argument("--days", type=int, default=7, help="last N days ending today")
+    sp.add_argument("--date", help="single date YYYY-MM-DD")
+    sp.add_argument("--start", help="start date YYYY-MM-DD")
+    sp.add_argument("--end", help="end date YYYY-MM-DD (default today)")
+    sp.add_argument("--source", choices=["local", "r2"], help="read data from (default: STORAGE_BACKEND)")
+    sp.add_argument("--no-email", action="store_true", help="write report locally, don't email")
+    sp.set_defaults(func=cmd_report)
 
     args = p.parse_args()
     args.func(args)

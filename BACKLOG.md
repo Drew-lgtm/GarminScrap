@@ -33,16 +33,14 @@ refreshed token is NOT saved back to the secret. If the refresh token expires/ro
 login breaks. Plan: rely on item 1 (auto re-auth) to recover, and/or persist the
 refreshed token (write back to R2 or update the secret via the GitHub API).
 
-## 3. Automated AI report
+## 3. Automated AI report  (DONE)
 
-Goal: generate the analysis from `analysis/INSTRUCTIONS.md` automatically each run instead
-of feeding data to an AI by hand.
+Implemented: `aggregate.py` (window → compact digest), `report.py` (Gemini free tier
+with a medical-advisor prompt → markdown → Gmail SMTP email), `cli report`, and the
+weekly `.github/workflows/report.yml` (Mondays 05:30 UTC, reads R2, emails).
 
-Notes:
-- A year of raw JSON is far too big for any model context (and free-tier limits) — the
-  report step must **aggregate to daily/weekly summaries first**, then send those.
-- `analyze.py` already has a Claude path (paid). Add a selectable **Gemini** backend
-  (`google-generativeai`) for a free option, chosen via env (e.g. `LLM_BACKEND`).
-- Gemini caveat: a consumer **Gemini Advanced/Pro subscription does NOT grant API
-  access**. Get a free **Gemini API key from Google AI Studio** (aistudio.google.com); its
-  free tier (Flash models) is generous and fits this use. Store the key as a secret.
+Remaining (wiring): free **Gemini API key** (Google AI Studio) + **Gmail app password**;
+add secrets `GEMINI_API_KEY`, `GMAIL_ADDRESS`, `GMAIL_APP_PASSWORD`, `REPORT_TO`.
+
+Privacy note: Gemini's *free* tier may use prompts (health data) to improve models.
+Possible future hardening: paid tier / Vertex, or a local model.

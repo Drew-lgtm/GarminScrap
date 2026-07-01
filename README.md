@@ -74,6 +74,23 @@ or generate a report automatically (needs `ANTHROPIC_API_KEY` in `.env`):
 python -m garminscrap.cli analyze --start 2026-06-10 --end 2026-06-16
 ```
 
+## AI health report (Gemini + email)
+
+`report` aggregates a window into a compact digest, sends it to Google **Gemini**
+(free tier) with a medical-advisor prompt (observations & trends only — no diagnoses),
+and emails the result via Gmail SMTP:
+
+```bash
+python -m garminscrap.cli report --days 7                 # read local, email
+python -m garminscrap.cli report --days 7 --source r2 --no-email   # from R2, print/save only
+```
+
+Setup: a free **Gemini API key** from [Google AI Studio](https://aistudio.google.com),
+and a **Gmail app password** (needs 2-Step Verification) for sending. Put
+`GEMINI_API_KEY`, `GMAIL_ADDRESS`, `GMAIL_APP_PASSWORD`, `REPORT_TO` in `.env`.
+Note: Gemini's *free* tier may use your data to improve their models — a privacy
+tradeoff to weigh for health data.
+
 ## Automated runs (GitHub Actions → Cloudflare R2)
 
 The workflow in [`.github/workflows/scrape.yml`](.github/workflows/scrape.yml)
