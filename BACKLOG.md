@@ -17,10 +17,10 @@ runs locally (now hands-off).
 
 ## 2. GitHub Actions automation
 
-Goal: daily unattended scrape → R2. Workflow is `.github/workflows/scrape.yml`:
-runs **daily at 04:30 UTC**, scrapes **the previous day** (`--date yesterday --full`,
-timezone `Europe/Prague`), uploads to R2 under per-date folders. `workflow_dispatch`
-takes an optional `date` input for manual backfill.
+Goal: weekly unattended scrape → R2. Workflow is `.github/workflows/scrape.yml`:
+runs **Mondays 04:30 UTC**, scrapes the **last ~10 days ending yesterday** (`--full`,
+timezone `Europe/Prague`) into per-date R2 folders. `workflow_dispatch` takes an
+optional `date` for manual single-day backfill.
 
 Remaining (wiring):
 - Add repo secrets: `GARMIN_TOKEN_B64` (from `tokens/token_b64.txt`), `R2_ACCOUNT_ID`,

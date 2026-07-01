@@ -1,16 +1,16 @@
-name: Scrape Garmin (daily)
+name: Scrape Garmin (weekly)
 
 on:
   schedule:
-    - cron: "30 4 * * *"   # daily 04:30 UTC — after midnight in Europe/Prague
+    - cron: "30 4 * * 1"   # Mondays 04:30 UTC (early morning in Europe/Prague)
   workflow_dispatch:
     inputs:
       date:
-        description: "Date to scrape (YYYY-MM-DD). Blank = yesterday."
+        description: "Single date to scrape (YYYY-MM-DD). Blank = last ~10 days."
         required: false
 
 env:
-  TZ: Europe/Prague       # used to compute "yesterday"; change to your timezone
+  TZ: Europe/Prague       # used to compute dates; change to your timezone
 
 jobs:
   scrape:
@@ -25,7 +25,7 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - name: Scrape previous day -> R2
+      - name: Scrape -> R2
         env:
           GARMIN_TOKEN_B64: ${{ secrets.GARMIN_TOKEN_B64 }}
           STORAGE_BACKEND: r2
@@ -35,6 +35,12 @@ jobs:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
         run: |
           DATE="${{ github.event.inputs.date }}"
-          if [ -z "$DATE" ]; then DATE=$(date -d yesterday +%F); fi
-          echo "Scraping $DATE"
-          python -m garminscrap.cli scrape --date "$DATE" --full
+          if [ -n "$DATE" ]; then
+            echo "Scraping single date $DATE"
+            python -m garminscrap.cli scrape --date "$DATE" --full
+          else
+            END=$(date -d yesterday +%F)
+            START=$(date -d '10 days ago' +%F)
+            echo "Scraping $START .. $END"
+            python -m garminscrap.cli scrape --start "$START" --end "$END" --full
+          fi
