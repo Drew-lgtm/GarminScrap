@@ -17,15 +17,16 @@ runs locally (now hands-off).
 
 ## 2. GitHub Actions automation
 
-Goal: daily unattended scrape → R2. The workflow already exists
-(`.github/workflows/scrape.yml`, `--days 7 --full`); this is mostly wiring.
+Goal: daily unattended scrape → R2. Workflow is `.github/workflows/scrape.yml`:
+runs **daily at 04:30 UTC**, scrapes **the previous day** (`--date yesterday --full`,
+timezone `Europe/Prague`), uploads to R2 under per-date folders. `workflow_dispatch`
+takes an optional `date` input for manual backfill.
 
-Steps:
+Remaining (wiring):
 - Add repo secrets: `GARMIN_TOKEN_B64` (from `tokens/token_b64.txt`), `R2_ACCOUNT_ID`,
-  `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`; later the mail creds (item 1)
-  and an LLM key (item 3).
-- Enable Actions; test via `workflow_dispatch`; confirm objects land in R2.
-- Pick cron time (UTC) + scrape window.
+  `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`.
+- Test via `workflow_dispatch`; confirm objects land in R2.
+- One-time: bulk-upload the existing local year to R2 (CI only adds new days going forward).
 
 Watch out — **token write-back**: the DI token auto-refreshes in-process, but the
 refreshed token is NOT saved back to the secret. If the refresh token expires/rotates, CI
