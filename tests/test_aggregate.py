@@ -29,6 +29,7 @@ def _day_files(ds):
         f"{ds}/stress.json": {"avgStressLevel": 28, "maxStressLevel": 90},
         f"{ds}/training_readiness.json": [{"score": 74, "level": "HIGH", "acuteLoad": 320}],
         f"{ds}/body_battery.json": [{"charged": 55, "drained": 40}],
+        f"{ds}/daily_weigh_ins.json": {"totalAverage": {"weight": 75200.0, "bmi": 23.4, "bodyFat": 18.1}},
     }
 
 
@@ -48,6 +49,7 @@ def test_day_summary_extraction():
     assert d["intensity_min"] == 30
     assert d["readiness"] == 74 and d["acute_load"] == 320
     assert d["bb_charged"] == 55
+    assert d["weight_kg"] == 75.2 and d["bmi"] == 23.4  # grams -> kg
 
 
 def test_empty_window():

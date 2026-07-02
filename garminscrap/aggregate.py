@@ -8,7 +8,7 @@ from datetime import date, timedelta
 
 # Daily datasets the report needs (read per date).
 DAILY_LOAD = ["sleep", "user_summary", "hrv", "stress", "training_readiness",
-              "body_battery", "max_metrics"]
+              "body_battery", "max_metrics", "daily_weigh_ins"]
 
 
 def _daterange(start, end):
@@ -31,6 +31,10 @@ def _day_summary(ds, files):
     tr0 = tr[0] if isinstance(tr, list) and tr else {}
     bb = files.get("body_battery") or []
     bb0 = bb[0] if isinstance(bb, list) and bb else {}
+    wavg = (files.get("daily_weigh_ins") or {}).get("totalAverage") or {}
+    wg = wavg.get("weight")
+    weight_kg = round(wg / 1000, 1) if isinstance(wg, (int, float)) and wg > 500 else (
+        round(wg, 1) if isinstance(wg, (int, float)) else None)
     sleep_secs = dto.get("sleepTimeSeconds")
     overall = (dto.get("sleepScores") or {}).get("overall") or {}
     return {
@@ -54,6 +58,9 @@ def _day_summary(ds, files):
         "acute_load": tr0.get("acuteLoad"),
         "bb_charged": bb0.get("charged"),
         "bb_drained": bb0.get("drained"),
+        "weight_kg": weight_kg,
+        "bmi": round(wavg["bmi"], 1) if isinstance(wavg.get("bmi"), (int, float)) else None,
+        "body_fat_pct": round(wavg["bodyFat"], 1) if isinstance(wavg.get("bodyFat"), (int, float)) else None,
     }
 
 
