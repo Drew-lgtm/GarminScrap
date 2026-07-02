@@ -38,7 +38,7 @@ GMAIL_OTP_TIMEOUT = int(os.getenv("GMAIL_OTP_TIMEOUT", "120"))
 
 # Weekly AI health report: Gemini (free tier) + Gmail SMTP email.
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 GMAIL_ADDRESS = os.getenv("GMAIL_ADDRESS")            # SMTP sender
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")  # Gmail app password (not read-only OAuth)
 REPORT_TO = os.getenv("REPORT_TO")                    # recipient (default: GMAIL_ADDRESS)
