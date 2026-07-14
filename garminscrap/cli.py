@@ -104,6 +104,18 @@ def cmd_report(args):
                email=not args.no_email)
 
 
+def cmd_push_token(args):
+    """Upload the local token to the R2 token store (one-time bootstrap)."""
+    import json
+    from .storage import R2Storage
+    key = config.GARMIN_TOKEN_R2_KEY or "_auth/token.json"
+    tok_file = Path(config.TOKEN_DIR) / "garmin_tokens.json"
+    if not tok_file.exists():
+        raise SystemExit(f"No local token at {tok_file}; run `login` first.")
+    R2Storage().write_json(key, json.loads(tok_file.read_text(encoding="utf-8")))
+    print(f"Uploaded local Garmin token to R2 key '{key}'.")
+
+
 def main():
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     p = argparse.ArgumentParser(prog="garminscrap")
@@ -131,6 +143,9 @@ def main():
     sp.add_argument("--start", required=True)
     sp.add_argument("--end", required=True)
     sp.set_defaults(func=cmd_analyze)
+
+    sp = sub.add_parser("push-token", help="Upload local token to the R2 token store")
+    sp.set_defaults(func=cmd_push_token)
 
     sp = sub.add_parser("report", help="MD-style health report, emailed (Gemini + Gmail)")
     sp.add_argument("--days", type=int, default=7, help="last N days ending today")

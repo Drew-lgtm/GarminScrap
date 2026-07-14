@@ -39,10 +39,31 @@ def test_get_client_uses_token_dir(monkeypatch):
 
 def test_get_client_prefers_b64_env(monkeypatch):
     created = {}
+    monkeypatch.setattr(config, "GARMIN_TOKEN_R2_KEY", None)
     monkeypatch.setattr(auth, "Garmin", lambda *a, **k: created.setdefault("c", FakeGarminClient()))
     monkeypatch.setenv("GARMIN_TOKEN_B64", base64.b64encode(TOKEN_JSON.encode()).decode())
     auth.get_client()
     assert created["c"].login_arg == TOKEN_JSON  # decoded back to the token JSON
+
+
+def test_get_client_r2_store_reads_and_writes_back(monkeypatch):
+    import json
+    monkeypatch.setattr(config, "GARMIN_TOKEN_R2_KEY", "_auth/token.json")
+    stored = {"di_token": "a", "di_refresh_token": "b", "di_client_id": "c"}
+    written = {}
+
+    class FakeStore:
+        def read_json(self, key): return stored
+        def write_json(self, key, obj): written["key"], written["obj"] = key, obj
+
+    monkeypatch.setattr("garminscrap.storage.R2Storage", lambda: FakeStore())
+    created = {}
+    monkeypatch.setattr(auth, "Garmin", lambda *a, **k: created.setdefault("c", FakeGarminClient()))
+
+    auth.get_client()
+    assert json.loads(created["c"].login_arg) == stored          # logged in with R2 token
+    assert written["key"] == "_auth/token.json"
+    assert written["obj"] == json.loads(TOKEN_JSON)              # refreshed token written back
 
 
 def test_interactive_login_requires_credentials(monkeypatch):

@@ -28,10 +28,10 @@ Remaining (wiring):
 - Test via `workflow_dispatch`; confirm objects land in R2.
 - One-time: bulk-upload the existing local year to R2 (CI only adds new days going forward).
 
-Watch out — **token write-back**: the DI token auto-refreshes in-process, but the
-refreshed token is NOT saved back to the secret. If the refresh token expires/rotates, CI
-login breaks. Plan: rely on item 1 (auto re-auth) to recover, and/or persist the
-refreshed token (write back to R2 or update the secret via the GitHub API).
+**Token write-back — DONE.** The token now lives in R2 (`_auth/token.json`, via
+`GARMIN_TOKEN_R2_KEY`) and `get_client` writes the refreshed token back each run, so the
+~2-week sliding-window refresh token keeps sliding forward. Re-auth is only needed if runs
+lapse for >2 weeks: local `login`, then `push-token` to re-seed R2.
 
 ## 3. Automated AI report  (DONE)
 

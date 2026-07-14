@@ -13,6 +13,10 @@ GARMIN_IS_CN = os.getenv("GARMIN_IS_CN", "false").lower() == "true"
 
 # Local paths.
 TOKEN_DIR = os.getenv("GARMINTOKENS", str(Path.cwd() / "tokens"))
+
+# If set, the Garmin token lives in R2 at this key and is refreshed in place
+# each run (keeps the sliding-window refresh token alive for unattended CI).
+GARMIN_TOKEN_R2_KEY = os.getenv("GARMIN_TOKEN_R2_KEY")
 DATA_DIR = Path(os.getenv("DATA_DIR", str(Path.cwd() / "data")))
 
 # Storage: "local" (default) or "r2".

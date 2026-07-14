@@ -4,6 +4,8 @@ Normal runs reuse a saved OAuth token (no password, no MFA). The one-time
 `interactive_login` handles credentials + MFA and saves the token.
 """
 import base64
+import json
+import logging
 import os
 import sys
 import time
@@ -12,6 +14,8 @@ from pathlib import Path
 from garminconnect import Garmin
 
 from . import config, gmail_mfa
+
+log = logging.getLogger(__name__)
 
 
 def _mfa_prompt():
@@ -31,17 +35,42 @@ def _mfa_prompt():
 def get_client():
     """Return an authenticated Garmin client from a saved token.
 
-    Uses the GARMIN_TOKEN_B64 env var (base64 token, used in CI) if present,
-    otherwise the local token directory. The token auto-refreshes in process.
+    Token source, in priority order:
+    1. R2 token store (GARMIN_TOKEN_R2_KEY) — read, log in, then write the
+       refreshed token back so its sliding-window refresh token never goes
+       stale. This is what keeps unattended CI runs working long-term.
+    2. GARMIN_TOKEN_B64 env var (legacy; can't be refreshed back).
+    3. Local token directory (also written back to stay fresh).
     Run `login` first if no token exists yet.
     """
     garmin = Garmin()
+
+    if config.GARMIN_TOKEN_R2_KEY:
+        from .storage import R2Storage
+        store = R2Storage()
+        tok = store.read_json(config.GARMIN_TOKEN_R2_KEY)
+        if not tok:
+            raise SystemExit(
+                f"No Garmin token in R2 at '{config.GARMIN_TOKEN_R2_KEY}'. "
+                "Bootstrap it once with `push-token` after a local `login`.")
+        garmin.login(json.dumps(tok))
+        # Persist the refreshed/rotated token so the window keeps sliding.
+        try:
+            store.write_json(config.GARMIN_TOKEN_R2_KEY, json.loads(garmin.client.dumps()))
+        except Exception as e:
+            log.warning("could not write refreshed token back to R2: %s", e)
+        return garmin
+
     token_b64 = os.environ.get("GARMIN_TOKEN_B64")
     if token_b64:
-        # CI: secret holds base64 of the token JSON; decode and load it directly.
         garmin.login(base64.b64decode(token_b64).decode())
-    else:
-        garmin.login(config.TOKEN_DIR)
+        return garmin
+
+    garmin.login(config.TOKEN_DIR)
+    try:  # keep the local token fresh across runs
+        garmin.client.dump(str(config.TOKEN_DIR))
+    except Exception:
+        pass
     return garmin
 
 

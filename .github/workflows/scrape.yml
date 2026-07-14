@@ -27,6 +27,7 @@ jobs:
 
       - name: Scrape -> R2
         env:
+          GARMIN_TOKEN_R2_KEY: _auth/token.json
           GARMIN_TOKEN_B64: ${{ secrets.GARMIN_TOKEN_B64 }}
           STORAGE_BACKEND: r2
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}

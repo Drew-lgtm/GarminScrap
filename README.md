@@ -102,7 +102,17 @@ runs daily and uploads to R2. Add these repo **Secrets**:
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | Cloudflare R2 |
 | `ANTHROPIC_API_KEY` | optional — enables the auto-report step |
 
-Re-run `login` locally ~once a year when the token expires.
+### Token store & re-authenticating
+
+CI reads the Garmin token from R2 (`_auth/token.json`, set via `GARMIN_TOKEN_R2_KEY`) and
+writes the refreshed token back every run, so its ~2-week sliding-window refresh token stays
+alive as long as the job runs at least that often. If it ever lapses (401 in the logs),
+re-seed it:
+
+```bash
+python -m garminscrap.cli login          # mint a fresh token locally (handles MFA)
+python -m garminscrap.cli push-token      # upload it to the R2 token store
+```
 
 ## Tests
 
