@@ -17,7 +17,8 @@ def test_run_emails(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
     monkeypatch.setattr(report, "get_reader", lambda source=None: object())
     monkeypatch.setattr(aggregate, "load_window",
-                        lambda r, s, e: {"days": [{"date": s, "sleep_h": 7.5}], "activities": []})
+                        lambda r, s, e: {"days": [{"date": s, "sleep_h": 7.5}], "activities": [],
+                                         "stats": aggregate._computed_stats([{"date": s, "sleep_h": 7.5}])})
     monkeypatch.setattr(report, "_gemini", lambda prompt: "# Report\nlooks fine")
     sent = {}
     monkeypatch.setattr(report, "_send_email",

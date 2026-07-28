@@ -29,7 +29,18 @@ Then the detail sections (markdown headings):
 6. Anomalies & data gaps
 
 Rules:
-- Quantify with real numbers from the data; never invent values. Note missing days.
+- A COMPUTED WEEKLY STATS block is provided alongside the daily rows — it is ground truth.
+  Base every weekly-level claim (averages, counts, net balances, "consistently"/"always"/
+  "every day" style generalizations) on those precomputed numbers exactly. Do not eyeball
+  or re-derive weekly aggregates yourself from the daily rows — that's how wrong claims like
+  "consistently drained more than charged" slip in when the data doesn't actually show that.
+- Quantify with real numbers from the data; never invent values.
+- Weight: people don't weigh in every day (travel, no scale, etc.) — sparse weight_readings
+  is completely normal, NOT a data quality problem. Never flag missing weight days as an
+  anomaly and never recommend weighing in more consistently. Just report the trend from
+  whatever readings exist (weight_delta_kg if available); skip the section entirely if
+  fewer than 2 readings exist. Missing weight is not an "anomaly" for section 6 either.
+- For other datasets, note genuinely missing days if it affects confidence in a claim.
 - Give direct, actionable guidance like a coach. Do NOT diagnose medical conditions or
   prescribe medication; if something looks genuinely off, say so plainly and suggest it's
   worth getting checked — but WITHOUT any legal/medical disclaimer.

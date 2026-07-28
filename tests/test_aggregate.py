@@ -81,4 +81,29 @@ def test_activities_filtered_and_deduped():
 def test_digest_text_contains_sections():
     win = aggregate.load_window(FakeReader(_day_files("2026-06-15")), "2026-06-15", "2026-06-15")
     text = aggregate.to_digest_text(win)
-    assert "DAILY METRICS" in text and "ACTIVITIES" in text
+    assert "COMPUTED WEEKLY STATS" in text and "DAILY METRICS" in text and "ACTIVITIES" in text
+
+
+def test_computed_stats_are_deterministic_and_dont_contradict():
+    days = [
+        {"date": "2026-07-21", "sleep_h": 7.8, "resting_hr": 55, "hrv_night": 52,
+         "bb_charged": 79, "bb_drained": 82, "acute_load": 64, "weight_kg": 92.0},
+        {"date": "2026-07-22", "sleep_h": 7.9, "resting_hr": 54, "hrv_night": 50,
+         "bb_charged": 77, "bb_drained": 72, "acute_load": 55, "weight_kg": 92.0},
+        {"date": "2026-07-25", "sleep_h": 4.7, "resting_hr": 57, "hrv_night": 49,
+         "bb_charged": 69, "bb_drained": 86, "acute_load": 70, "weight_kg": None},
+        {"date": "2026-07-26", "sleep_h": 7.8, "resting_hr": 53, "hrv_night": 55,
+         "bb_charged": None, "bb_drained": None, "acute_load": 60, "weight_kg": 92.5},
+    ]
+    stats = aggregate._computed_stats(days)
+    assert stats["nights_under_6_5h"] == 1  # only 07-25
+    assert stats["bb_net_days_total"] == 3   # the day with None/None is excluded
+    assert stats["bb_net_negative_days"] == 2   # 07-21 and 07-25 only, NOT "consistently"
+    assert stats["weight_delta_kg"] == 0.5   # sparse readings still diff first->last
+    assert stats["acute_load_start"] == 64 and stats["acute_load_end"] == 60
+
+
+def test_computed_stats_empty_days():
+    stats = aggregate._computed_stats([])
+    assert stats["avg_sleep_h"] is None and stats["weight_delta_kg"] is None
+    assert stats["bb_net_by_day"] == []

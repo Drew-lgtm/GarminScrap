@@ -91,8 +91,42 @@ def _load_activities(reader, start, end):
     return sorted(seen.values(), key=lambda x: x["date"])
 
 
+def _avg(xs):
+    return round(sum(xs) / len(xs), 1) if xs else None
+
+
+def _computed_stats(days):
+    """Deterministic weekly aggregates, computed in code so the model never has
+    to eyeball arithmetic across days (source of past self-contradictions)."""
+    sleep_hs = [d["sleep_h"] for d in days if d.get("sleep_h") is not None]
+    rhrs = [d["resting_hr"] for d in days if d.get("resting_hr") is not None]
+    hrvs = [d["hrv_night"] for d in days if d.get("hrv_night") is not None]
+    nets = [(d["date"], round(d["bb_charged"] - d["bb_drained"], 1)) for d in days
+            if d.get("bb_charged") is not None and d.get("bb_drained") is not None]
+    loads = [d["acute_load"] for d in days if d.get("acute_load") is not None]
+    weights = [(d["date"], d["weight_kg"]) for d in days if d.get("weight_kg") is not None]
+
+    return {
+        "avg_sleep_h": _avg(sleep_hs),
+        "nights_with_sleep_data": len(sleep_hs),
+        "nights_under_6_5h": sum(1 for h in sleep_hs if h < 6.5),
+        "avg_resting_hr": _avg(rhrs),
+        "resting_hr_range": [min(rhrs), max(rhrs)] if rhrs else None,
+        "hrv_night_range": [min(hrvs), max(hrvs)] if hrvs else None,
+        "bb_net_by_day": nets,  # [(date, charged-drained)]
+        "bb_net_negative_days": sum(1 for _, n in nets if n < 0),
+        "bb_net_days_total": len(nets),
+        "avg_bb_net": _avg([n for _, n in nets]),
+        "acute_load_start": loads[0] if loads else None,
+        "acute_load_end": loads[-1] if loads else None,
+        "weight_readings": weights,  # [(date, kg)], sparse by design
+        "weight_delta_kg": (round(weights[-1][1] - weights[0][1], 1)
+                             if len(weights) >= 2 else None),
+    }
+
+
 def load_window(reader, start, end):
-    """Return {'days': [...], 'activities': [...]} for [start, end]."""
+    """Return {'days': [...], 'activities': [...], 'stats': {...}} for [start, end]."""
     days = []
     for ds in _daterange(start, end):
         files = {}
@@ -102,13 +136,19 @@ def load_window(reader, start, end):
                 files[name] = obj
         if files:
             days.append(_day_summary(ds, files))
-    return {"days": days, "activities": _load_activities(reader, start, end)}
+    return {
+        "days": days,
+        "activities": _load_activities(reader, start, end),
+        "stats": _computed_stats(days),
+    }
 
 
 def to_digest_text(summary):
     """Compact text form of the window for the model prompt."""
     return (
-        "DAILY METRICS (one row per day):\n"
+        "COMPUTED WEEKLY STATS (ground truth for weekly-level claims):\n"
+        + json.dumps(summary["stats"], ensure_ascii=False)
+        + "\n\nDAILY METRICS (one row per day):\n"
         + json.dumps(summary["days"], ensure_ascii=False)
         + f"\n\nACTIVITIES ({len(summary['activities'])}):\n"
         + json.dumps(summary["activities"], ensure_ascii=False)
