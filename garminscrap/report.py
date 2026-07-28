@@ -27,8 +27,16 @@ Then the detail sections (markdown headings):
 4. Recovery-vs-load balance
 5. Weight & body composition (only if weight data is present)
 6. Anomalies & data gaps
+7. Focus for next week
 
 Rules:
+- Section 7 ("Focus for next week") is the payoff section — 2-4 bullets, each one a
+  specific, prioritized, actionable focus point tied to a concrete number from the data
+  (e.g. "Sleep: you were under 6.5h on 3/7 nights — protect a 7.5h window, especially the
+  night after a hard session"; "Training: acute load rose from X to Y — a short/easy day
+  would let it settle before it climbs further"; "Recovery: Body Battery ended net-negative
+  on N/M days — that's the one to watch, not readiness"). Order by what matters most this
+  week. Skip a point if nothing in that area needs attention — don't pad with filler.
 - A COMPUTED WEEKLY STATS block is provided alongside the daily rows — it is ground truth.
   Base every weekly-level claim (averages, counts, net balances, "consistently"/"always"/
   "every day" style generalizations) on those precomputed numbers exactly. Do not eyeball
