@@ -4,12 +4,17 @@ Uses Google Gemini (free tier) for the analysis and Gmail SMTP to send. The
 report is descriptive only — no diagnoses, prescriptions, or treatment.
 """
 import logging
+import time
 from pathlib import Path
 
 from . import aggregate, config
 from .storage import get_reader
 
 log = logging.getLogger(__name__)
+
+# Backoff (seconds) for Gemini "high demand" 503s — these are transient on
+# Google's side; the SDK's own built-in retries give up too quickly for that.
+_RETRY_DELAYS = [30, 90, 180]
 
 MD_SYSTEM = """You are an experienced endurance & strength coach with a preventive-health \
 background, reviewing a person's own Garmin data. Be direct, practical, and concise.
@@ -58,16 +63,25 @@ Rules:
 
 def _gemini(prompt):
     from google import genai
-    from google.genai import types
+    from google.genai import errors, types
 
     client = genai.Client(api_key=config.GEMINI_API_KEY)
-    resp = client.models.generate_content(
-        model=config.GEMINI_MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=MD_SYSTEM, max_output_tokens=4000),
-    )
-    return resp.text
+    for attempt in range(len(_RETRY_DELAYS) + 1):
+        try:
+            resp = client.models.generate_content(
+                model=config.GEMINI_MODEL,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=MD_SYSTEM, max_output_tokens=4000),
+            )
+            return resp.text
+        except errors.ServerError:
+            if attempt == len(_RETRY_DELAYS):
+                raise
+            delay = _RETRY_DELAYS[attempt]
+            log.warning("Gemini server error (attempt %d/%d), retrying in %ds",
+                        attempt + 1, len(_RETRY_DELAYS) + 1, delay)
+            time.sleep(delay)
 
 
 def _send_email(subject, body, to):

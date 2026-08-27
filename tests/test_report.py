@@ -37,3 +37,51 @@ def test_run_no_data(monkeypatch):
     monkeypatch.setattr(aggregate, "load_window", lambda r, s, e: {"days": [], "activities": []})
     with pytest.raises(SystemExit):
         report.run("2026-06-15", "2026-06-15", email=False)
+
+
+def test_gemini_retries_transient_server_error(monkeypatch):
+    from google.genai import errors as genai_errors
+
+    monkeypatch.setattr(config, "GEMINI_API_KEY", "key")
+    monkeypatch.setattr(report, "_RETRY_DELAYS", [0, 0])  # skip real sleeps
+    monkeypatch.setattr(report.time, "sleep", lambda s: None)
+
+    calls = {"n": 0}
+
+    class FakeResp:
+        text = "# Report\nok"
+
+    class FakeModels:
+        def generate_content(self, **kwargs):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise genai_errors.ServerError(503, {"error": {"message": "busy"}})
+            return FakeResp()
+
+    class FakeClient:
+        def __init__(self, api_key=None):
+            self.models = FakeModels()
+
+    monkeypatch.setattr("google.genai.Client", FakeClient)
+    assert report._gemini("prompt") == "# Report\nok"
+    assert calls["n"] == 3
+
+
+def test_gemini_raises_after_exhausting_retries(monkeypatch):
+    from google.genai import errors as genai_errors
+
+    monkeypatch.setattr(config, "GEMINI_API_KEY", "key")
+    monkeypatch.setattr(report, "_RETRY_DELAYS", [0])
+    monkeypatch.setattr(report.time, "sleep", lambda s: None)
+
+    class FakeModels:
+        def generate_content(self, **kwargs):
+            raise genai_errors.ServerError(503, {"error": {"message": "busy"}})
+
+    class FakeClient:
+        def __init__(self, api_key=None):
+            self.models = FakeModels()
+
+    monkeypatch.setattr("google.genai.Client", FakeClient)
+    with pytest.raises(genai_errors.ServerError):
+        report._gemini("prompt")
