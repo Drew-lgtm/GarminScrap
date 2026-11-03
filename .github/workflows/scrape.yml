@@ -2,7 +2,7 @@ name: Scrape Garmin (weekly)
 
 on:
   schedule:
-    - cron: "30 4 * * 1"   # Mondays 04:30 UTC (early morning in Europe/Prague)
+    - cron: "30 4 * * 1"   #  Mondays 04:30 UTC (early morning in Europe/Prague)
   workflow_dispatch:
     inputs:
       date:
