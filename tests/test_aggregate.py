@@ -103,6 +103,54 @@ def test_computed_stats_are_deterministic_and_dont_contradict():
     assert stats["acute_load_start"] == 64 and stats["acute_load_end"] == 60
 
 
+def _bb_day(ds, sleep_secs, wake, low, end):
+    files = _day_files(ds)
+    files[f"{ds}/sleep.json"]["dailySleepDTO"]["sleepTimeSeconds"] = sleep_secs
+    files[f"{ds}/user_summary.json"].update(
+        bodyBatteryAtWakeTime=wake, bodyBatteryLowestValue=low, bodyBatteryMostRecentValue=end)
+    return files
+
+
+def test_week_table_md_rows_gaps_and_prev_comparison():
+    files = {}
+    files.update(_bb_day("2026-06-15", 25200, 80, 20, 35))  # 7.0 h
+    files.update(_bb_day("2026-06-17", 28800, 90, 30, 55))  # 8.0 h; 06-16 has no data
+    files.update(_bb_day("2026-06-13", 21600, 70, 10, 25))  # prev window (06-12..06-14), 6.0 h
+    files["activities/w.json"] = [
+        {"activityId": 1, "startTimeLocal": "2026-06-15 07:00:00", "duration": 1800},
+        {"activityId": 2, "startTimeLocal": "2026-06-15 18:00:00", "duration": 3600},
+    ]
+    reader = FakeReader(files)
+    win = aggregate.load_window(reader, "2026-06-15", "2026-06-17")
+
+    lines = aggregate.week_table_md(reader, win, "2026-06-15", "2026-06-17").splitlines()
+    cells = lambda i: [c.strip() for c in lines[i].strip("|").split("|")]
+
+    assert cells(0)[:2] == ["Day", "Sleep h"] and "BB end" in cells(0)
+    mon = cells(2)                                   # first data row (06-15 is a Monday)
+    assert mon[0] == "Mon 06-15" and mon[1] == "7"
+    assert mon[cells(0).index("BB wake")] == "80" and mon[cells(0).index("BB end")] == "35"
+    assert mon[cells(0).index("Acts")] == "2" and mon[cells(0).index("Act min")] == "90"
+    gap = cells(3)                                   # 06-16: no data at all
+    assert gap[0] == "Tue 06-16" and set(gap[1:]) == {"–"}
+    assert cells(5)[:2] == ["**Avg**", "7.5"]        # mean of 7.0 and 8.0, gap ignored
+    assert cells(6)[:2] == ["Prev avg", "6"]
+    assert cells(7)[:2] == ["Δ", "+1.5"]
+    assert "Body Battery" in lines[-1]               # legend
+
+
+def test_week_table_md_without_prev_data_omits_comparison():
+    files = _bb_day("2026-06-15", 25200, 80, 20, 35)
+    reader = FakeReader(files)
+    win = aggregate.load_window(reader, "2026-06-15", "2026-06-15")
+    text = aggregate.week_table_md(reader, win, "2026-06-15", "2026-06-15")
+    assert "| Prev avg |" not in text and "| Δ |" not in text and "| **Avg** |" in text
+
+
+def test_prev_window_is_adjacent_and_equal_length():
+    assert aggregate.prev_window("2026-06-08", "2026-06-14") == ("2026-06-01", "2026-06-07")
+
+
 def test_computed_stats_empty_days():
     stats = aggregate._computed_stats([])
     assert stats["avg_sleep_h"] is None and stats["weight_delta_kg"] is None

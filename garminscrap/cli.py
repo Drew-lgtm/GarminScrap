@@ -100,6 +100,9 @@ def cmd_analyze(args):
 def cmd_report(args):
     from . import report
     start, end = _resolve_window(args)
+    if not (args.date or args.start):
+        # Default window = last N complete days (scrape data ends yesterday).
+        start, end = start - timedelta(days=1), end - timedelta(days=1)
     report.run(start.isoformat(), end.isoformat(), source=args.source,
                email=not args.no_email)
 

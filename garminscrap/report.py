@@ -84,7 +84,26 @@ def _gemini(prompt):
             time.sleep(delay)
 
 
-def _send_email(subject, body, to):
+_CELL_STYLE = "border:1px solid #ddd;padding:4px 8px;white-space:nowrap;"
+
+
+def _to_html(md_text):
+    """Markdown -> HTML email body with readable, scrollable tables."""
+    import re
+
+    import markdown
+
+    html = markdown.markdown(md_text, extensions=["tables"])
+    html = re.sub(r'<(th|td)(?: style="([^"]*)")?>',
+                  lambda m: f'<{m.group(1)} style="{_CELL_STYLE}{m.group(2) or ""}">', html)
+    html = html.replace(
+        "<table>", '<div style="overflow-x:auto"><table style="border-collapse:collapse;'
+                   'font-size:13px">').replace("</table>", "</table></div>")
+    return ('<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;'
+            f'line-height:1.5;max-width:900px">{html}</div>')
+
+
+def _send_email(subject, body, to, html=None):
     import smtplib
     from email.message import EmailMessage
 
@@ -93,6 +112,8 @@ def _send_email(subject, body, to):
     msg["To"] = to
     msg["Subject"] = subject
     msg.set_content(body)
+    if html:
+        msg.add_alternative(html, subtype="html")
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as s:
         s.login(config.GMAIL_ADDRESS, config.GMAIL_APP_PASSWORD)
         s.send_message(msg)
@@ -111,6 +132,8 @@ def run(start, end, source=None, email=True):
               f"{aggregate.to_digest_text(summary)}\n\n"
               "Write the report per your instructions.")
     report_md = _gemini(prompt)
+    table_md = aggregate.week_table_md(reader, summary, start, end)
+    report_md = f"{report_md.rstrip()}\n\n---\n\n### Week at a glance\n\n{table_md}\n"
 
     out = Path(config.DATA_DIR) / f"report-{start}_{end}.md"
     try:
@@ -123,6 +146,7 @@ def run(start, end, source=None, email=True):
         if not (config.GMAIL_ADDRESS and config.GMAIL_APP_PASSWORD):
             raise SystemExit("GMAIL_ADDRESS / GMAIL_APP_PASSWORD not set for emailing.")
         to = config.REPORT_TO or config.GMAIL_ADDRESS
-        _send_email(f"Garmin health report {start} to {end}", report_md, to)
+        _send_email(f"Garmin health report {start} to {end}", report_md, to,
+                    html=_to_html(report_md))
         log.info("emailed report to %s", to)
     return report_md

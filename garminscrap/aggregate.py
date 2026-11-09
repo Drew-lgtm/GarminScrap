@@ -58,6 +58,9 @@ def _day_summary(ds, files):
         "acute_load": tr0.get("acuteLoad"),
         "bb_charged": bb0.get("charged"),
         "bb_drained": bb0.get("drained"),
+        "bb_wake": us.get("bodyBatteryAtWakeTime"),
+        "bb_low": us.get("bodyBatteryLowestValue"),
+        "bb_end": us.get("bodyBatteryMostRecentValue"),
         "weight_kg": weight_kg,
         "bmi": round(wavg["bmi"], 1) if isinstance(wavg.get("bmi"), (int, float)) else None,
         "body_fat_pct": round(wavg["bodyFat"], 1) if isinstance(wavg.get("bodyFat"), (int, float)) else None,
@@ -141,6 +144,84 @@ def load_window(reader, start, end):
         "activities": _load_activities(reader, start, end),
         "stats": _computed_stats(days),
     }
+
+
+# Week-at-a-glance table: (header, row key, decimals used for averages).
+TABLE_COLS = [
+    ("Sleep h", "sleep_h", 1), ("Score", "sleep_score", 1), ("HRV", "hrv_night", 1),
+    ("RHR", "resting_hr", 1), ("Stress", "avg_stress", 1), ("BB wake", "bb_wake", 1),
+    ("BB low", "bb_low", 1), ("BB end", "bb_end", 1), ("Ready", "readiness", 1),
+    ("Steps", "steps", 0), ("Acts", "acts", 1), ("Act min", "act_min", 0),
+]
+TABLE_LEGEND = ("*BB = Body Battery (0-100) on waking / lowest of the day / end of day. "
+                "Acts = logged activities, Act min = their total minutes. "
+                "Avg and Prev avg are per-day means; Δ = Avg − Prev avg.*")
+_MISSING = "–"
+
+
+def prev_window(start, end):
+    """The window of equal length immediately before [start, end] (ISO strings)."""
+    s, e = date.fromisoformat(start), date.fromisoformat(end)
+    pend = s - timedelta(days=1)
+    pstart = pend - (e - s)
+    return pstart.isoformat(), pend.isoformat()
+
+
+def _table_rows(win, start, end):
+    """One dict per calendar day in [start, end], missing days kept as gaps."""
+    by_date = {d["date"]: d for d in win["days"]}
+    rows = []
+    for ds in _daterange(start, end):
+        row = dict(by_date.get(ds, {"date": ds}))
+        acts = [a for a in win["activities"] if a["date"] == ds]
+        if acts or ds in by_date:
+            row["acts"] = len(acts)
+            row["act_min"] = sum(a.get("dur_min") or 0 for a in acts)
+        rows.append(row)
+    return rows
+
+
+def _avg_row(rows):
+    out = {}
+    for _, key, _ in TABLE_COLS:
+        vals = [r[key] for r in rows if isinstance(r.get(key), (int, float))]
+        out[key] = sum(vals) / len(vals) if vals else None
+    return out
+
+
+def _fmt(v, nd=1, signed=False):
+    if not isinstance(v, (int, float)):
+        return _MISSING
+    v = round(v, nd)
+    s = f"{v:+g}" if signed else f"{v:g}"
+    return s.replace("-", "−")
+
+
+def week_table_md(reader, summary, start, end):
+    """Markdown table: one row per day, plus Avg / Prev avg / Δ vs the prior window."""
+    rows = _table_rows(summary, start, end)
+    avg = _avg_row(rows)
+    pstart, pend = prev_window(start, end)
+    prev = load_window(reader, pstart, pend)
+    pavg = _avg_row(_table_rows(prev, pstart, pend)) if prev["days"] else None
+
+    header = ["Day"] + [h for h, _, _ in TABLE_COLS]
+    lines = ["| " + " | ".join(header) + " |",
+             "|" + "|".join(["---"] + ["---:"] * len(TABLE_COLS)) + "|"]
+
+    def add(label, vals):
+        lines.append("| " + " | ".join([label] + vals) + " |")
+
+    for r in rows:
+        label = date.fromisoformat(r["date"]).strftime("%a %m-%d")
+        add(label, [_fmt(r.get(k), 1) for _, k, _ in TABLE_COLS])
+    add("**Avg**", [_fmt(avg[k], nd) for _, k, nd in TABLE_COLS])
+    if pavg:
+        add("Prev avg", [_fmt(pavg[k], nd) for _, k, nd in TABLE_COLS])
+        add("Δ", [_fmt(avg[k] - pavg[k], nd, signed=True)
+                  if avg[k] is not None and pavg[k] is not None else _MISSING
+                  for _, k, nd in TABLE_COLS])
+    return "\n".join(lines) + "\n\n" + TABLE_LEGEND
 
 
 def to_digest_text(summary):

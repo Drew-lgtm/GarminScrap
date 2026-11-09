@@ -22,13 +22,45 @@ def test_run_emails(monkeypatch, tmp_path):
     monkeypatch.setattr(report, "_gemini", lambda prompt: "# Report\nlooks fine")
     sent = {}
     monkeypatch.setattr(report, "_send_email",
-                        lambda subject, body, to: sent.update(subject=subject, body=body, to=to))
+                        lambda subject, body, to, html=None: sent.update(
+                            subject=subject, body=body, to=to, html=html))
 
     out = report.run("2026-06-15", "2026-06-15", email=True)
     assert out.startswith("# Report")
     assert sent["to"] == "me@gmail.com"
     assert "looks fine" in sent["body"]
+    assert "Week at a glance" in sent["body"] and "| Day |" in sent["body"]
+    assert "<table" in sent["html"] and "Week at a glance" in sent["html"]
     assert (tmp_path / "report-2026-06-15_2026-06-15.md").exists()
+
+
+def test_to_html_styles_aligned_table_cells():
+    md = "| A | B |\n|---|---:|\n| 1 | 2 |\n"
+    html = report._to_html(md)
+    assert "<table" in html and "overflow-x:auto" in html
+    assert f'{report._CELL_STYLE}text-align: right;' in html  # merged styles
+
+
+def test_send_email_attaches_html_alternative(monkeypatch):
+    import smtplib
+
+    monkeypatch.setattr(config, "GMAIL_ADDRESS", "me@gmail.com")
+    monkeypatch.setattr(config, "GMAIL_APP_PASSWORD", "pw")
+    captured = {}
+
+    class FakeSMTP:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def login(self, *a): pass
+        def send_message(self, msg): captured["msg"] = msg
+
+    monkeypatch.setattr(smtplib, "SMTP_SSL", FakeSMTP)
+    report._send_email("subj", "plain body", "me@gmail.com", html="<p>hi</p>")
+    msg = captured["msg"]
+    assert msg.is_multipart()
+    assert msg.get_body(("plain",)).get_content().strip() == "plain body"
+    assert "<p>hi</p>" in msg.get_body(("html",)).get_content()
 
 
 def test_run_no_data(monkeypatch):

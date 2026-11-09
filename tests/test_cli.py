@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from types import SimpleNamespace
 
 from garminscrap import cli, config, fetch
@@ -23,6 +23,26 @@ def test_resolve_window_days_spans_inclusive():
     args = SimpleNamespace(date=None, start=None, end=None, days=3)
     start, end = cli._resolve_window(args)
     assert (end - start).days == 2  # 3 days inclusive
+
+
+def test_report_default_window_ends_yesterday(monkeypatch):
+    from garminscrap import report
+    seen = {}
+    monkeypatch.setattr(report, "run", lambda s, e, **kw: seen.update(start=s, end=e))
+    args = SimpleNamespace(date=None, start=None, end=None, days=7, source=None, no_email=True)
+    cli.cmd_report(args)
+    start, end = date.fromisoformat(seen["start"]), date.fromisoformat(seen["end"])
+    assert (end - start).days == 6 and end == date.today() - timedelta(days=1)
+
+
+def test_report_explicit_window_untouched(monkeypatch):
+    from garminscrap import report
+    seen = {}
+    monkeypatch.setattr(report, "run", lambda s, e, **kw: seen.update(start=s, end=e))
+    args = SimpleNamespace(date=None, start="2026-06-01", end="2026-06-07", days=7,
+                           source=None, no_email=True)
+    cli.cmd_report(args)
+    assert (seen["start"], seen["end"]) == ("2026-06-01", "2026-06-07")
 
 
 def _scrape_args(**over):

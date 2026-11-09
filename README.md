@@ -85,6 +85,11 @@ python -m garminscrap.cli report --days 7                 # read local, email
 python -m garminscrap.cli report --days 7 --source r2 --no-email   # from R2, print/save only
 ```
 
+The email ends with a **Week at a glance** table built in code (exact numbers, not AI):
+one row per day — sleep, HRV, resting HR, stress, Body Battery on waking / lowest / end of
+day, readiness, steps, activities — plus per-day averages vs. the previous week and the Δ.
+The default window is the last 7 *complete* days (ending yesterday).
+
 Setup: a free **Gemini API key** from [Google AI Studio](https://aistudio.google.com),
 and a **Gmail app password** (needs 2-Step Verification) for sending. Put
 `GEMINI_API_KEY`, `GMAIL_ADDRESS`, `GMAIL_APP_PASSWORD`, `REPORT_TO` in `.env`.
