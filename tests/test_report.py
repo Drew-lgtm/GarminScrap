@@ -110,13 +110,16 @@ def _answer(text, finish="STOP"):
                             "content": {"role": "model", "parts": [{"text": text}]}}]}
 
 
-def test_gemini_real_sdk_request_uses_v1beta_with_system_instruction(monkeypatch):
+def test_gemini_real_sdk_request_uses_v1beta_with_system_instruction(monkeypatch, caplog):
     """Regression: google-genai 3.x defaults to API v1, which rejects system_instruction."""
-    monkeypatch.setattr(config, "GEMINI_MODEL", "gemini-3.5-flash-lite")
-    with _fake_gemini(monkeypatch, _answer("# Report")) as seen:
+    monkeypatch.setattr(config, "GEMINI_MODEL", "gemini-3.8-flash")
+    answer = {**_answer("# Report"),
+              "usageMetadata": {"thoughtsTokenCount": 1234, "candidatesTokenCount": 567}}
+    with _fake_gemini(monkeypatch, answer) as seen, caplog.at_level("INFO"):
         assert report._gemini("my data") == "# Report"
+    assert "thinking=1234, report=567" in caplog.text
 
-    assert seen["path"].startswith("/v1beta/models/gemini-3.5-flash-lite:generateContent")
+    assert seen["path"].startswith("/v1beta/models/gemini-3.8-flash:generateContent")
     assert "my data" in json.dumps(seen["body"]["contents"])
     assert "coach" in json.dumps(seen["body"]["systemInstruction"])
     assert seen["body"]["generationConfig"]["maxOutputTokens"] == report._MAX_OUTPUT_TOKENS

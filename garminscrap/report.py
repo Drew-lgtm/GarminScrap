@@ -17,8 +17,9 @@ log = logging.getLogger(__name__)
 _RETRY_DELAYS = [30, 90, 180]
 
 # Generous cap: on thinking models the reasoning counts against this limit too,
-# so a tight cap can truncate the report or leave it empty.
-_MAX_OUTPUT_TOKENS = 16384
+# so a tight cap can truncate the report or leave it empty. gemini-3.8-flash
+# thinks at "medium" by default and allows up to 65,536 output tokens.
+_MAX_OUTPUT_TOKENS = 32768
 
 MD_SYSTEM = """You are an experienced endurance & strength coach with a preventive-health \
 background, reviewing a person's own Garmin data. Be direct, practical, and concise.
@@ -96,6 +97,10 @@ def _report_text(resp):
 
     cands = getattr(resp, "candidates", None) or []
     reason = getattr(cands[0], "finish_reason", None) if cands else None
+    usage = getattr(resp, "usage_metadata", None)
+    if usage:
+        log.info("Gemini tokens: thinking=%s, report=%s, cap=%d",
+                 usage.thoughts_token_count, usage.candidates_token_count, _MAX_OUTPUT_TOKENS)
     text = resp.text
     if not text:
         raise RuntimeError(
