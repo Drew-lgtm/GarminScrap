@@ -1,3 +1,8 @@
+import json
+import threading
+from contextlib import contextmanager
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
 import pytest
 
 from garminscrap import aggregate, config, report
@@ -71,20 +76,16 @@ def test_run_no_data(monkeypatch):
         report.run("2026-06-15", "2026-06-15", email=False)
 
 
-def test_gemini_real_sdk_request_uses_v1beta_with_system_instruction(monkeypatch):
-    """Regression: google-genai 3.x defaults to API v1, which rejects system_instruction."""
-    import json
-    import threading
-    from http.server import BaseHTTPRequestHandler, HTTPServer
-
+@contextmanager
+def _fake_gemini(monkeypatch, payload):
+    """Point the real google-genai SDK at a local server that answers with `payload`."""
     seen = {}
 
-    class FakeGemini(BaseHTTPRequestHandler):  # local stand-in for the Gemini API
+    class FakeGemini(BaseHTTPRequestHandler):
         def do_POST(self):
             seen["path"] = self.path
             seen["body"] = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            out = json.dumps({"candidates": [{"content": {
-                "role": "model", "parts": [{"text": "# Report"}]}}]}).encode()
+            out = json.dumps(payload).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(out)))
@@ -96,17 +97,49 @@ def test_gemini_real_sdk_request_uses_v1beta_with_system_instruction(monkeypatch
 
     server = HTTPServer(("127.0.0.1", 0), FakeGemini)
     threading.Thread(target=server.serve_forever, daemon=True).start()
+    monkeypatch.setenv("GOOGLE_GEMINI_BASE_URL", f"http://127.0.0.1:{server.server_port}/")
+    monkeypatch.setattr(config, "GEMINI_API_KEY", "test-key")
     try:
-        monkeypatch.setenv("GOOGLE_GEMINI_BASE_URL", f"http://127.0.0.1:{server.server_port}/")
-        monkeypatch.setattr(config, "GEMINI_API_KEY", "test-key")
-        monkeypatch.setattr(config, "GEMINI_MODEL", "gemini-2.5-flash")
-        assert report._gemini("my data") == "# Report"
+        yield seen
     finally:
         server.shutdown()
 
-    assert seen["path"].startswith("/v1beta/models/gemini-2.5-flash:generateContent")
+
+def _answer(text, finish="STOP"):
+    return {"candidates": [{"finishReason": finish,
+                            "content": {"role": "model", "parts": [{"text": text}]}}]}
+
+
+def test_gemini_real_sdk_request_uses_v1beta_with_system_instruction(monkeypatch):
+    """Regression: google-genai 3.x defaults to API v1, which rejects system_instruction."""
+    monkeypatch.setattr(config, "GEMINI_MODEL", "gemini-3.5-flash-lite")
+    with _fake_gemini(monkeypatch, _answer("# Report")) as seen:
+        assert report._gemini("my data") == "# Report"
+
+    assert seen["path"].startswith("/v1beta/models/gemini-3.5-flash-lite:generateContent")
     assert "my data" in json.dumps(seen["body"]["contents"])
     assert "coach" in json.dumps(seen["body"]["systemInstruction"])
+    assert seen["body"]["generationConfig"]["maxOutputTokens"] == report._MAX_OUTPUT_TOKENS
+
+
+def test_gemini_blocked_prompt_fails_clearly(monkeypatch):
+    blocked = {"promptFeedback": {"blockReason": "SAFETY"}}  # no candidates, text is None
+    with _fake_gemini(monkeypatch, blocked):
+        with pytest.raises(RuntimeError, match="no report text.*SAFETY"):
+            report._gemini("my data")
+
+
+def test_gemini_empty_answer_fails_clearly(monkeypatch):
+    empty = {"candidates": [{"finishReason": "MAX_TOKENS", "content": {"role": "model"}}]}
+    with _fake_gemini(monkeypatch, empty):
+        with pytest.raises(RuntimeError, match="no report text.*MAX_TOKENS"):
+            report._gemini("my data")
+
+
+def test_gemini_truncated_report_is_flagged(monkeypatch):
+    with _fake_gemini(monkeypatch, _answer("# Report\npartial", finish="MAX_TOKENS")):
+        out = report._gemini("my data")
+    assert out.startswith("# Report\npartial") and "Report cut off" in out
 
 
 def test_gemini_retries_transient_server_error(monkeypatch):

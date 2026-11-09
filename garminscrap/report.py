@@ -16,6 +16,10 @@ log = logging.getLogger(__name__)
 # Google's side; the SDK's own built-in retries give up too quickly for that.
 _RETRY_DELAYS = [30, 90, 180]
 
+# Generous cap: on thinking models the reasoning counts against this limit too,
+# so a tight cap can truncate the report or leave it empty.
+_MAX_OUTPUT_TOKENS = 16384
+
 MD_SYSTEM = """You are an experienced endurance & strength coach with a preventive-health \
 background, reviewing a person's own Garmin data. Be direct, practical, and concise.
 
@@ -74,9 +78,9 @@ def _gemini(prompt):
                 model=config.GEMINI_MODEL,
                 contents=prompt,
                 config=types.GenerateContentConfig(
-                    system_instruction=MD_SYSTEM, max_output_tokens=4000),
+                    system_instruction=MD_SYSTEM, max_output_tokens=_MAX_OUTPUT_TOKENS),
             )
-            return resp.text
+            return _report_text(resp)
         except errors.ServerError:
             if attempt == len(_RETRY_DELAYS):
                 raise
@@ -84,6 +88,23 @@ def _gemini(prompt):
             log.warning("Gemini server error (attempt %d/%d), retrying in %ds",
                         attempt + 1, len(_RETRY_DELAYS) + 1, delay)
             time.sleep(delay)
+
+
+def _report_text(resp):
+    """The report text, failing clearly on an empty answer and flagging a cut-off one."""
+    from google.genai import types
+
+    cands = getattr(resp, "candidates", None) or []
+    reason = getattr(cands[0], "finish_reason", None) if cands else None
+    text = resp.text
+    if not text:
+        raise RuntimeError(
+            f"Gemini returned no report text (finish_reason={reason}, "
+            f"prompt_feedback={getattr(resp, 'prompt_feedback', None)})")
+    if reason == types.FinishReason.MAX_TOKENS:
+        log.warning("Gemini hit the output token limit; report is truncated")
+        text += "\n\n*(Report cut off: the model hit its output length limit.)*"
+    return text
 
 
 _CELL_STYLE = "border:1px solid #ddd;padding:4px 8px;white-space:nowrap;"
