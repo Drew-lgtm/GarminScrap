@@ -98,14 +98,19 @@ tradeoff to weigh for health data.
 
 ## Automated runs (GitHub Actions → Cloudflare R2)
 
-The workflow in [`.github/workflows/scrape.yml`](.github/workflows/scrape.yml)
-runs daily and uploads to R2. Add these repo **Secrets**:
+One workflow, [`.github/workflows/weekly.yml`](.github/workflows/weekly.yml), runs
+**Mondays 03:17 UTC**: the `scrape` job pulls the last ~10 days into R2, then the `report`
+job (only if the scrape succeeded) emails the weekly report. Manual runs: *Run workflow*
+with blank inputs = full weekly run; a `date` = scrape that one day only, no email. If just
+the report fails (e.g. Gemini overloaded), use *Re-run failed jobs* — the scrape isn't repeated.
+
+GitHub's free scheduler can start runs hours late and occasionally skips one, so the email
+may arrive later than 03:17. Add these repo **Secrets**:
 
 | Secret | From |
 | --- | --- |
-| `GARMIN_TOKEN_B64` | the `login` command output |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | Cloudflare R2 |
-| `ANTHROPIC_API_KEY` | optional — enables the auto-report step |
+| `GEMINI_API_KEY`, `GMAIL_ADDRESS`, `GMAIL_APP_PASSWORD`, `REPORT_TO` | report (see above) |
 
 ### Token store & re-authenticating
 

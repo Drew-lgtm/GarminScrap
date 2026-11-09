@@ -1,0 +1,81 @@
+name: Weekly Garmin pipeline
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"   # Mondays 03:17 UTC; odd minute dodges GitHub's busiest slots
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Backfill one date (YYYY-MM-DD): scrape only, no report. Blank = normal weekly run."
+        required: false
+      days:
+        description: "Report window in days (ending yesterday)"
+        default: "7"
+
+concurrency:
+  group: weekly-pipeline   # never two runs at once: they share the Garmin token in R2
+  cancel-in-progress: false
+
+env:
+  TZ: Europe/Prague        # used to compute dates; change to your timezone
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Scrape -> R2
+        env:
+          INPUT_DATE: ${{ inputs.date }}
+          GARMIN_TOKEN_R2_KEY: _auth/token.json
+          STORAGE_BACKEND: r2
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          if [ -n "$INPUT_DATE" ]; then
+            echo "Scraping single date $INPUT_DATE"
+            python -m garminscrap.cli scrape --date "$INPUT_DATE" --full
+          else
+            END=$(date -d yesterday +%F)
+            START=$(date -d '10 days ago' +%F)
+            echo "Scraping $START .. $END"
+            python -m garminscrap.cli scrape --start "$START" --end "$END" --full
+          fi
+
+  report:
+    needs: scrape            # runs only after a successful scrape
+    if: ${{ !inputs.date }}  # single-date backfills don't send a report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Build & email report
+        env:
+          INPUT_DAYS: ${{ inputs.days }}
+          REPORT_SOURCE: r2
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          REPORT_TO: ${{ secrets.REPORT_TO }}
+        run: python -m garminscrap.cli report --days "${INPUT_DAYS:-7}"

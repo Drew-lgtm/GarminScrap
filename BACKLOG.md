@@ -17,8 +17,8 @@ runs locally (now hands-off).
 
 ## 2. GitHub Actions automation
 
-Goal: weekly unattended scrape → R2. Workflow is `.github/workflows/scrape.yml`:
-runs **Mondays 04:30 UTC**, scrapes the **last ~10 days ending yesterday** (`--full`,
+Goal: weekly unattended scrape → R2. Workflow is `.github/workflows/weekly.yml` (scrape
+job, then report job): runs **Mondays 03:17 UTC**, scrapes the **last ~10 days ending yesterday** (`--full`,
 timezone `Europe/Prague`) into per-date R2 folders. `workflow_dispatch` takes an
 optional `date` for manual single-day backfill.
 
@@ -37,7 +37,7 @@ lapse for >2 weeks: local `login`, then `push-token` to re-seed R2.
 
 Implemented: `aggregate.py` (window → compact digest), `report.py` (Gemini free tier
 with a medical-advisor prompt → markdown → Gmail SMTP email), `cli report`, and the
-weekly `.github/workflows/report.yml` (Mondays 05:30 UTC, reads R2, emails).
+`report` job in `.github/workflows/weekly.yml` (runs after a successful scrape, reads R2, emails).
 
 Remaining (wiring): free **Gemini API key** (Google AI Studio) + **Gmail app password**;
 add secrets `GEMINI_API_KEY`, `GMAIL_ADDRESS`, `GMAIL_APP_PASSWORD`, `REPORT_TO`.
