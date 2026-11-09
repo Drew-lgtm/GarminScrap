@@ -197,13 +197,37 @@ def _fmt(v, nd=1, signed=False):
     return s.replace("-", "−")
 
 
-def week_table_md(reader, summary, start, end):
+def prev_avg(reader, start, end):
+    """Per-day means of the window before [start, end], or None if it has no data."""
+    pstart, pend = prev_window(start, end)
+    prev = load_window(reader, pstart, pend)
+    return _avg_row(_table_rows(prev, pstart, pend)) if prev["days"] else None
+
+
+def _num(v, nd):
+    if not isinstance(v, (int, float)):
+        return None
+    return round(v) if nd == 0 else round(v, nd)
+
+
+def week_over_week(summary, start, end, pavg):
+    """{metric: {this_week, last_week, change}} for the prompt, same numbers as the
+    table's Avg / Prev avg / Δ rows. None when last week has no data."""
+    if not pavg:
+        return None
+    avg = _avg_row(_table_rows(summary, start, end))
+    out = {}
+    for _, key, nd in TABLE_COLS:
+        a, p = avg[key], pavg[key]
+        out[key] = {"this_week": _num(a, nd), "last_week": _num(p, nd),
+                    "change": _num(a - p, nd) if a is not None and p is not None else None}
+    return out
+
+
+def week_table_md(summary, start, end, pavg):
     """Markdown table: one row per day, plus Avg / Prev avg / Δ vs the prior window."""
     rows = _table_rows(summary, start, end)
     avg = _avg_row(rows)
-    pstart, pend = prev_window(start, end)
-    prev = load_window(reader, pstart, pend)
-    pavg = _avg_row(_table_rows(prev, pstart, pend)) if prev["days"] else None
 
     header = ["Day"] + [h for h, _, _ in TABLE_COLS]
     lines = ["| " + " | ".join(header) + " |",
@@ -224,11 +248,18 @@ def week_table_md(reader, summary, start, end):
     return "\n".join(lines) + "\n\n" + TABLE_LEGEND
 
 
-def to_digest_text(summary):
+def to_digest_text(summary, wow=None):
     """Compact text form of the window for the model prompt."""
+    if wow:
+        wow_text = ("WEEK-OVER-WEEK (per-day means, this week vs last week; acts = activities "
+                    "per day, act_min = activity minutes per day; ground truth for any "
+                    "comparison with last week):\n" + json.dumps(wow, ensure_ascii=False))
+    else:
+        wow_text = "WEEK-OVER-WEEK: no data for last week, so make no comparisons with it."
     return (
         "COMPUTED WEEKLY STATS (ground truth for weekly-level claims):\n"
         + json.dumps(summary["stats"], ensure_ascii=False)
+        + "\n\n" + wow_text
         + "\n\nDAILY METRICS (one row per day):\n"
         + json.dumps(summary["days"], ensure_ascii=False)
         + f"\n\nACTIVITIES ({len(summary['activities'])}):\n"

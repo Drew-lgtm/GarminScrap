@@ -111,7 +111,7 @@ def _bb_day(ds, sleep_secs, wake, low, end):
     return files
 
 
-def test_week_table_md_rows_gaps_and_prev_comparison():
+def _two_week_reader():
     files = {}
     files.update(_bb_day("2026-06-15", 25200, 80, 20, 35))  # 7.0 h
     files.update(_bb_day("2026-06-17", 28800, 90, 30, 55))  # 8.0 h; 06-16 has no data
@@ -120,10 +120,15 @@ def test_week_table_md_rows_gaps_and_prev_comparison():
         {"activityId": 1, "startTimeLocal": "2026-06-15 07:00:00", "duration": 1800},
         {"activityId": 2, "startTimeLocal": "2026-06-15 18:00:00", "duration": 3600},
     ]
-    reader = FakeReader(files)
-    win = aggregate.load_window(reader, "2026-06-15", "2026-06-17")
+    return FakeReader(files)
 
-    lines = aggregate.week_table_md(reader, win, "2026-06-15", "2026-06-17").splitlines()
+
+def test_week_table_md_rows_gaps_and_prev_comparison():
+    reader = _two_week_reader()
+    win = aggregate.load_window(reader, "2026-06-15", "2026-06-17")
+    pavg = aggregate.prev_avg(reader, "2026-06-15", "2026-06-17")
+
+    lines = aggregate.week_table_md(win, "2026-06-15", "2026-06-17", pavg).splitlines()
     cells = lambda i: [c.strip() for c in lines[i].strip("|").split("|")]
 
     assert cells(0)[:2] == ["Day", "Sleep h"] and "BB end" in cells(0)
@@ -139,12 +144,31 @@ def test_week_table_md_rows_gaps_and_prev_comparison():
     assert "Body Battery" in lines[-1]               # legend
 
 
+def test_week_over_week_matches_table_numbers():
+    reader = _two_week_reader()
+    win = aggregate.load_window(reader, "2026-06-15", "2026-06-17")
+    pavg = aggregate.prev_avg(reader, "2026-06-15", "2026-06-17")
+    wow = aggregate.week_over_week(win, "2026-06-15", "2026-06-17", pavg)
+
+    assert wow["sleep_h"] == {"this_week": 7.5, "last_week": 6.0, "change": 1.5}  # table: 7.5 / 6 / +1.5
+    assert wow["bb_wake"] == {"this_week": 85.0, "last_week": 70.0, "change": 15.0}
+    assert wow["act_min"] == {"this_week": 45, "last_week": 0, "change": 45}       # 0 decimals -> int
+    assert set(wow) == {key for _, key, _ in aggregate.TABLE_COLS}
+
+    text = aggregate.to_digest_text(win, wow)
+    assert "WEEK-OVER-WEEK" in text and '"sleep_h": {"this_week": 7.5' in text
+
+
 def test_week_table_md_without_prev_data_omits_comparison():
     files = _bb_day("2026-06-15", 25200, 80, 20, 35)
     reader = FakeReader(files)
     win = aggregate.load_window(reader, "2026-06-15", "2026-06-15")
-    text = aggregate.week_table_md(reader, win, "2026-06-15", "2026-06-15")
+    pavg = aggregate.prev_avg(reader, "2026-06-15", "2026-06-15")
+    assert pavg is None
+    text = aggregate.week_table_md(win, "2026-06-15", "2026-06-15", pavg)
     assert "| Prev avg |" not in text and "| Δ |" not in text and "| **Avg** |" in text
+    assert aggregate.week_over_week(win, "2026-06-15", "2026-06-15", pavg) is None
+    assert "no data for last week" in aggregate.to_digest_text(win, None)
 
 
 def test_prev_window_is_adjacent_and_equal_length():

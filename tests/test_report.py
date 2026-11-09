@@ -24,7 +24,8 @@ def test_run_emails(monkeypatch, tmp_path):
     monkeypatch.setattr(aggregate, "load_window",
                         lambda r, s, e: {"days": [{"date": s, "sleep_h": 7.5}], "activities": [],
                                          "stats": aggregate._computed_stats([{"date": s, "sleep_h": 7.5}])})
-    monkeypatch.setattr(report, "_gemini", lambda prompt: "# Report\nlooks fine")
+    prompts = []
+    monkeypatch.setattr(report, "_gemini", lambda prompt: prompts.append(prompt) or "# Report\nlooks fine")
     sent = {}
     monkeypatch.setattr(report, "_send_email",
                         lambda subject, body, to, html=None: sent.update(
@@ -32,6 +33,9 @@ def test_run_emails(monkeypatch, tmp_path):
 
     out = report.run("2026-06-15", "2026-06-15", email=True)
     assert out.startswith("# Report")
+    # the model gets the same week-over-week numbers as the table (prev window = 06-14)
+    assert '"sleep_h": {"this_week": 7.5, "last_week": 7.5, "change": 0.0}' in prompts[0]
+    assert "| Prev avg |" in sent["body"]
     assert sent["to"] == "me@gmail.com"
     assert "looks fine" in sent["body"]
     assert "Week at a glance" in sent["body"] and "| Day |" in sent["body"]

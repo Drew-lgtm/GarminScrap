@@ -88,6 +88,7 @@ python -m garminscrap.cli report --days 7 --source r2 --no-email   # from R2, pr
 The email ends with a **Week at a glance** table built in code (exact numbers, not AI):
 one row per day — sleep, HRV, resting HR, stress, Body Battery on waking / lowest / end of
 day, readiness, steps, activities — plus per-day averages vs. the previous week and the Δ.
+Gemini gets the same week-over-week averages, so the written report can call out changes.
 The default window is the last 7 *complete* days (ending yesterday).
 
 Setup: a free **Gemini API key** from [Google AI Studio](https://aistudio.google.com),

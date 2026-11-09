@@ -26,8 +26,8 @@ background, reviewing a person's own Garmin data. Be direct, practical, and conc
 
 Start with a **TL;DR** — 2-4 sentences in plain language, leading with what matters most:
 the bottom line on training load (too much / too little / about right), sleep (getting
-enough or running a deficit), recovery (fresh / strained), and any notable weight change —
-then ONE clear recommendation for the coming week (e.g. "go to bed earlier", "you're fresh,
+enough or running a deficit), recovery (fresh / strained), any notable weight change, and
+the biggest change vs last week — then ONE clear recommendation for the coming week (e.g. "go to bed earlier", "you're fresh,
 fine to train hard", "ease off and take it easier this week"). Make it punchy and useful.
 
 Then the detail sections (markdown headings):
@@ -41,12 +41,23 @@ Then the detail sections (markdown headings):
 
 Rules:
 - Section 7 ("Focus for next week") is the payoff section — 2-4 bullets, each one a
-  specific, prioritized, actionable focus point tied to a concrete number from the data
-  (e.g. "Sleep: you were under 6.5h on 3/7 nights — protect a 7.5h window, especially the
-  night after a hard session"; "Training: acute load rose from X to Y — a short/easy day
-  would let it settle before it climbs further"; "Recovery: Body Battery ended net-negative
-  on N/M days — that's the one to watch, not readiness"). Order by what matters most this
-  week. Skip a point if nothing in that area needs attention — don't pad with filler.
+  specific, prioritized action tied to a concrete number from the data. Every bullet says
+  what to DO: when, what, how much (e.g. "Sleep: under 6.5h on N/7 nights — lights out by
+  22:30 on weeknights"; "Training: acute load rose from X to Y — keep the two days after
+  your next hard session easy"; "Recovery: Body Battery ended net-negative on N/M days —
+  swap one evening of screen time for a 20-min walk"). Those examples show the style only;
+  write your own from this week's data. Never "monitor", "keep an eye on", "track",
+  "watch" or "be mindful of" anything — the watch already tracks it all; say what to
+  change. Order by what matters most this week. Skip an area if nothing in it needs
+  attention — don't pad with filler.
+- A WEEK-OVER-WEEK block compares this week's per-day means with last week's (the same
+  numbers as the table under the report). Use it for every comparison with last week, and
+  in the TL;DR name the biggest meaningful shift (e.g. "readiness down N points vs last
+  week") with its likely cause from the data. Don't call recovery "fine" or "holding up"
+  when readiness, HRV or Body Battery dropped noticeably vs last week. If it says last
+  week has no data, make no comparisons with last week.
+- Describe ranges honestly: if a metric was low on some days, name those days and values
+  instead of summarising it as "high on most days".
 - A COMPUTED WEEKLY STATS block is provided alongside the daily rows — it is ground truth.
   Base every weekly-level claim (averages, counts, net balances, "consistently"/"always"/
   "every day" style generalizations) on those precomputed numbers exactly. Do not eyeball
@@ -156,11 +167,13 @@ def run(start, end, source=None, email=True):
     if not summary["days"]:
         raise SystemExit(f"No data found for {start}..{end} (source={source or config.REPORT_SOURCE}).")
 
+    pavg = aggregate.prev_avg(reader, start, end)
+    wow = aggregate.week_over_week(summary, start, end, pavg)
     prompt = (f"Here is my Garmin data for {start} to {end}.\n\n"
-              f"{aggregate.to_digest_text(summary)}\n\n"
+              f"{aggregate.to_digest_text(summary, wow)}\n\n"
               "Write the report per your instructions.")
     report_md = _gemini(prompt)
-    table_md = aggregate.week_table_md(reader, summary, start, end)
+    table_md = aggregate.week_table_md(summary, start, end, pavg)
     report_md = f"{report_md.rstrip()}\n\n---\n\n### Week at a glance\n\n{table_md}\n"
 
     out = Path(config.DATA_DIR) / f"report-{start}_{end}.md"
