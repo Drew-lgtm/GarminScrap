@@ -71,6 +71,44 @@ def test_run_no_data(monkeypatch):
         report.run("2026-06-15", "2026-06-15", email=False)
 
 
+def test_gemini_real_sdk_request_uses_v1beta_with_system_instruction(monkeypatch):
+    """Regression: google-genai 3.x defaults to API v1, which rejects system_instruction."""
+    import json
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    seen = {}
+
+    class FakeGemini(BaseHTTPRequestHandler):  # local stand-in for the Gemini API
+        def do_POST(self):
+            seen["path"] = self.path
+            seen["body"] = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            out = json.dumps({"candidates": [{"content": {
+                "role": "model", "parts": [{"text": "# Report"}]}}]}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(out)))
+            self.end_headers()
+            self.wfile.write(out)
+
+        def log_message(self, *a):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), FakeGemini)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        monkeypatch.setenv("GOOGLE_GEMINI_BASE_URL", f"http://127.0.0.1:{server.server_port}/")
+        monkeypatch.setattr(config, "GEMINI_API_KEY", "test-key")
+        monkeypatch.setattr(config, "GEMINI_MODEL", "gemini-2.5-flash")
+        assert report._gemini("my data") == "# Report"
+    finally:
+        server.shutdown()
+
+    assert seen["path"].startswith("/v1beta/models/gemini-2.5-flash:generateContent")
+    assert "my data" in json.dumps(seen["body"]["contents"])
+    assert "coach" in json.dumps(seen["body"]["systemInstruction"])
+
+
 def test_gemini_retries_transient_server_error(monkeypatch):
     from google.genai import errors as genai_errors
 
@@ -91,7 +129,7 @@ def test_gemini_retries_transient_server_error(monkeypatch):
             return FakeResp()
 
     class FakeClient:
-        def __init__(self, api_key=None):
+        def __init__(self, api_key=None, http_options=None):
             self.models = FakeModels()
 
     monkeypatch.setattr("google.genai.Client", FakeClient)
@@ -111,7 +149,7 @@ def test_gemini_raises_after_exhausting_retries(monkeypatch):
             raise genai_errors.ServerError(503, {"error": {"message": "busy"}})
 
     class FakeClient:
-        def __init__(self, api_key=None):
+        def __init__(self, api_key=None, http_options=None):
             self.models = FakeModels()
 
     monkeypatch.setattr("google.genai.Client", FakeClient)

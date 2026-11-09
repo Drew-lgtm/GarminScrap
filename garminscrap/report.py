@@ -65,7 +65,9 @@ def _gemini(prompt):
     from google import genai
     from google.genai import errors, types
 
-    client = genai.Client(api_key=config.GEMINI_API_KEY)
+    # system_instruction only exists on v1beta; google-genai 3.x defaults to v1.
+    client = genai.Client(api_key=config.GEMINI_API_KEY,
+                          http_options=types.HttpOptions(api_version="v1beta"))
     for attempt in range(len(_RETRY_DELAYS) + 1):
         try:
             resp = client.models.generate_content(
